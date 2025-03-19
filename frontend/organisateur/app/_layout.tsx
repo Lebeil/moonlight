@@ -1,16 +1,21 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { pb } from '@/utils/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { useColorScheme } from '@/components/useColorScheme';
+// Permet d'obtenir le rôle de l'utilisateur actuel
+const getUserRole = () => {
+  const user = pb.authStore.model;
+  if (!user) return '';
+  return String(user.role || '').toLowerCase().trim();
+};
 
-// Création du client QueryClient
+// Création du client pour React Query
 const queryClient = new QueryClient();
 
 export {
@@ -32,57 +37,107 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  const colorScheme = useColorScheme();
-
-  // Check if a user is authenticated
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-
+  // Exposer l'environnement actuel à toute l'application
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    // Vérifier l'authentification
-    const checkAuth = async () => {
-      // Si un utilisateur est authentifié, vérifiez son rôle
-      if (pb.authStore.isValid) {
-        const user = pb.authStore.model;
-        // Vérifiez que l'utilisateur est un organisateur
-        if (user && user.role === 'organisateur') {
-          setIsAuthenticated(true);
-        } else {
-          pb.authStore.clear();
-          setIsAuthenticated(false);
-        }
-      } else {
-        setIsAuthenticated(false);
-      }
-    };
-
-    checkAuth();
-
-    // Masquer l'écran de démarrage
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded || isAuthenticated === null) {
+  // Si les polices ne sont pas chargées, ne pas afficher le contenu principal
+  if (!loaded) {
     return null;
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} redirect={isAuthenticated} />
-          <Stack.Screen name="new-party" options={{ title: 'Nouvelle Soirée', presentation: 'modal' }} />
-          <Stack.Screen name="party-details" options={{ title: 'Détails de la Soirée' }} />
-          <Stack.Screen name="attendees" options={{ title: 'Participants', presentation: 'card' }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        </Stack>
-      </ThemeProvider>
+      <RootLayoutNavigation />
     </QueryClientProvider>
+  );
+}
+
+function RootLayoutNavigation() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Vérifier si l'utilisateur est connecté et est un organisateur
+  useEffect(() => {
+    // Vérifier l'état de l'authentification
+    const checkAuth = async () => {
+      try {
+        const isAuth = pb.authStore.isValid;
+        const userRole = getUserRole();
+        const isOrganizer = isAuth && userRole.includes('organisateur');
+
+        console.log('Auth check - isAuth:', isAuth, 'userRole:', userRole, 'isOrganizer:', isOrganizer);
+
+        // Si l'utilisateur est connecté mais n'est pas organisateur, le déconnecter
+        if (isAuth && !isOrganizer) {
+          console.log('Utilisateur connecté mais pas organisateur, déconnexion forcée');
+          pb.authStore.clear();
+          setIsLoggedIn(false);
+        } else {
+          setIsLoggedIn(isAuth && isOrganizer);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setIsLoggedIn(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    // S'abonner aux changements d'authentification
+    pb.authStore.onChange(() => {
+      console.log('Auth store changed, rechecking auth state');
+      checkAuth();
+    });
+
+    return () => {
+      // Nettoyage de l'abonnement
+      pb.authStore.onChange(() => { });
+    };
+  }, []);
+
+  // Écouter les changements de route et rediriger si nécessaire
+  useEffect(() => {
+    if (isLoading) return;
+
+    console.log('Navigation check - Auth state:', isLoggedIn, 'Current segment:', segments[0], 'PB Auth Valid:', pb.authStore.isValid);
+
+    // Vérifier si l'utilisateur est déconnecté et n'est pas déjà sur login
+    if (!pb.authStore.isValid && segments[0] !== 'login') {
+      console.log('Utilisateur déconnecté, redirection vers login');
+      router.replace('/login');
+      return;
+    }
+
+    // Comportement normal de navigation
+    if (isLoggedIn && segments[0] === 'login') {
+      console.log('Redirection vers (tabs)');
+      router.replace('/(tabs)');
+    }
+  }, [isLoggedIn, segments, isLoading, pb.authStore.isValid]);
+
+  // Masquer l'écran de démarrage une fois chargé
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [isLoading]);
+
+  return (
+    <ThemeProvider value={DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="attendees" options={{ title: 'Participants' }} />
+        <Stack.Screen name="party-details" options={{ title: 'Détails de la soirée' }} />
+        <Stack.Screen name="new-party" options={{ title: 'Nouvelle soirée' }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      </Stack>
+    </ThemeProvider>
   );
 }

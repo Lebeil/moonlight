@@ -6,7 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
-import { pb } from '../../shared/api';
+import { pb } from '@/utils/api';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Création du client QueryClient

@@ -3,8 +3,9 @@ import { StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform
 import { Text, View } from '@/components/Themed';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { LoginSchema, LoginForm } from '../../shared/types';
-import { loginUser } from '../../shared/api';
+import type { LoginForm } from '@/utils/types';
+import { LoginSchema } from '@/utils/types';
+import { loginUser } from '@/utils/api';
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
@@ -22,6 +23,12 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             const response = await loginUser(data.email, data.password);
+
+            // Vérifier si la connexion a réussi et si l'utilisateur existe
+            if (!response.success || !response.user) {
+                Alert.alert('Erreur d\'authentification', 'Email ou mot de passe incorrect');
+                return;
+            }
 
             // Vérifier si l'utilisateur est un vigile
             if (response.user.role !== 'vigile') {

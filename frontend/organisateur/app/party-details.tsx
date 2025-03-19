@@ -76,7 +76,7 @@ export default function PartyDetailsScreen() {
   const handleShareLink = async () => {
     if (!party) return;
 
-    const url = generatePartyUrl(party.code);
+    const url = generatePartyUrl(party.code || '');
 
     try {
       await Share.share({
@@ -90,7 +90,7 @@ export default function PartyDetailsScreen() {
   const handleCopyLink = async () => {
     if (!party) return;
 
-    const url = generatePartyUrl(party.code);
+    const url = generatePartyUrl(party.code || '');
 
     try {
       await Clipboard.setStringAsync(url);
@@ -111,15 +111,17 @@ export default function PartyDetailsScreen() {
         {
           text: 'Supprimer',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await pb.collection('parties').delete(party.id as string);
-              Alert.alert('Succès', 'La soirée a été supprimée');
-              router.replace('/');
-            } catch (error) {
-              console.error('Error deleting party:', error);
-              Alert.alert('Erreur', 'Impossible de supprimer la soirée');
-            }
+          onPress: () => {
+            (async () => {
+              try {
+                await pb.collection('parties').delete(party.id as string);
+                Alert.alert('Succès', 'La soirée a été supprimée');
+                router.replace('/');
+              } catch (error) {
+                console.error('Error deleting party:', error);
+                Alert.alert('Erreur', 'Impossible de supprimer la soirée');
+              }
+            })();
           }
         },
       ]
@@ -236,10 +238,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: 'white',
     borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   infoContainer: {
@@ -314,5 +313,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     marginLeft: 5,
+  },
+  actionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 16,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
 }); 

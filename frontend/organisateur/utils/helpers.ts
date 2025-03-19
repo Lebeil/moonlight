@@ -23,8 +23,11 @@ export const generatePartyQrContent = (party: Party) => {
 };
 
 // Générer l'URL de la soirée pour partage
-export const generatePartyUrl = (party: Party) => {
-    return `https://moonlight-party.com/party?code=${party.code}`;
+export const generatePartyUrl = (code: string) => {
+    // En environnement de développement, utiliser l'URL locale
+    return `exp://192.168.1.39:8081/--/party?code=${code}`;
+    // En production, utiliser l'URL publique
+    // return `https://moonlight-party.com/party?code=${code}`;
 };
 
 // Filtrer les participants par nom ou téléphone

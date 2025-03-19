@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ScanResult, Party } from '../../shared/types';
-import { pb } from '../../shared/api';
-import { formatDate } from '../../shared/utils';
+import type { ScanResult, Party } from '@/utils/types';
+import { pb } from '@/utils/api';
+import { formatDate } from '@/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ScanResultScreen() {

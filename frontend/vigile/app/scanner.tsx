@@ -3,10 +3,10 @@ import { StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-na
 import { Text, View } from '@/components/Themed';
 import { router } from 'expo-router';
 import { BarCodeScanner } from 'expo-barcode-scanner';
-import { pb } from '../../shared/api';
-import { parseQrContent } from '../../shared/utils';
+import { pb } from '@/utils/api';
+import { parseQrContent } from '@/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
-import { ScanResult } from '../../shared/types';
+import type { ScanResult } from '@/utils/types';
 
 export default function ScannerScreen() {
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);

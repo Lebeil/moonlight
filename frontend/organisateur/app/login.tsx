@@ -1,15 +1,38 @@
-import { useState } from 'react';
-import { StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { useState, useEffect } from 'react';
+import { StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { Text, View } from '../components/Themed';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { LoginForm } from '@/utils/types';
 import { LoginSchema } from '@/utils/types';
-import { loginUser } from '@/utils/api';
-import { router } from 'expo-router';
+import { loginUser, pb } from '@/utils/api';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+    const { logout } = useLocalSearchParams();
+
+    // Gestion de la déconnexion uniquement si paramètre explicite
+    useEffect(() => {
+        // Si on arrive sur cette page avec un paramètre logout, c'est qu'on vient d'être déconnecté
+        if (logout) {
+            console.log("Réinitialisation du store d'authentification suite à une déconnexion");
+            pb.authStore.clear();
+        }
+    }, [logout]);
+
+    // Vérifier si déjà connecté
+    useEffect(() => {
+        if (pb.authStore.isValid) {
+            const userRole = String(pb.authStore.model?.role || '').toLowerCase().trim();
+            if (userRole.includes('organisateur')) {
+                console.log('Utilisateur déjà connecté, redirection vers (tabs)');
+                router.replace('/(tabs)');
+            }
+        }
+    }, []);
 
     const { control, handleSubmit, formState: { errors } } = useForm<LoginForm>({
         resolver: zodResolver(LoginSchema),
@@ -21,24 +44,54 @@ export default function LoginScreen() {
 
     const onSubmit = async (data: LoginForm) => {
         setLoading(true);
+        setErrorMessage(''); // Réinitialiser le message d'erreur
+
         try {
             const response = await loginUser(data.email, data.password);
 
-            // Vérifier si l'utilisateur est un organisateur
-            if (response.user.role !== 'organisateur') {
-                Alert.alert(
-                    'Accès refusé',
-                    'Seuls les organisateurs peuvent accéder à cette application.'
-                );
+            // Vérifier si la connexion a réussi et si l'utilisateur existe
+            if (!response.success || !response.user) {
+                setErrorMessage('Email ou mot de passe incorrect');
+                setLoading(false);
                 return;
             }
 
-            router.replace('/');
+            // Déboguer l'objet utilisateur
+            console.log('User object:', JSON.stringify(response.user));
+            console.log('Role property type:', typeof response.user.role);
+            console.log('Role property value:', response.user.role);
+
+            // Vérifier si l'utilisateur est un organisateur
+            const userRole = String(response.user.role || '').toLowerCase().trim();
+            console.log('Rôle détecté:', response.user.role, 'Après conversion:', userRole);
+
+            if (!userRole.includes('organisateur')) {
+                console.log('Rôle incorrect:', response.user.role);
+
+                // Message d'erreur sur le rôle
+                setErrorMessage(`Accès refusé: Cette application est réservée aux organisateurs. Votre rôle actuel est "${response.user.role || 'Non défini'}"`);
+
+                // Déconnexion de l'utilisateur non autorisé
+                pb.authStore.clear();
+                setLoading(false);
+                return;
+            }
+
+            // L'authentification a réussi
+            console.log('Authentification réussie! Redirection vers la page des soirées');
+
+            // Forcer la redirection vers la page des soirées
+            try {
+                router.replace('/(tabs)');
+            } catch (navError) {
+                console.error('Erreur lors de la redirection:', navError);
+                // En cas d'échec, essayer une autre approche
+                setTimeout(() => {
+                    router.replace('/(tabs)');
+                }, 500);
+            }
         } catch (error) {
-            Alert.alert(
-                'Erreur d\'authentification',
-                'Email ou mot de passe incorrect'
-            );
+            setErrorMessage('Email ou mot de passe incorrect');
         } finally {
             setLoading(false);
         }
@@ -52,6 +105,13 @@ export default function LoginScreen() {
             <View style={styles.formContainer}>
                 <Text style={styles.title}>Connexion Organisateur</Text>
                 <Text style={styles.subtitle}>Connectez-vous pour gérer vos soirées</Text>
+
+                <View style={styles.infoContainer}>
+                    <Ionicons name="information-circle-outline" size={20} color="#666" />
+                    <Text style={styles.infoText}>
+                        Cette application est réservée aux organisateurs d'événements
+                    </Text>
+                </View>
 
                 <View style={styles.inputContainer}>
                     <Text style={styles.label}>Email</Text>
@@ -101,6 +161,13 @@ export default function LoginScreen() {
                         {loading ? 'Connexion en cours...' : 'Se connecter'}
                     </Text>
                 </TouchableOpacity>
+
+                {errorMessage ? (
+                    <View style={styles.errorContainer}>
+                        <Ionicons name="alert-circle" size={20} color="#d9534f" />
+                        <Text style={styles.errorNotification}>{errorMessage}</Text>
+                    </View>
+                ) : null}
             </View>
         </KeyboardAvoidingView>
     );
@@ -160,5 +227,37 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    infoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f8ff',
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 24,
+        borderLeftWidth: 3,
+        borderLeftColor: '#4630EB',
+    },
+    infoText: {
+        color: '#555',
+        fontSize: 14,
+        marginLeft: 8,
+        flex: 1,
+    },
+    errorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fdf7f7',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 20,
+        borderLeftWidth: 3,
+        borderLeftColor: '#d9534f',
+    },
+    errorNotification: {
+        color: '#d9534f',
+        fontSize: 14,
+        marginLeft: 8,
+        flex: 1,
     },
 }); 

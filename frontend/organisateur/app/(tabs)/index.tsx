@@ -1,7 +1,7 @@
 import { StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text, View } from '../../components/Themed';
 import { useEffect, useState } from 'react';
-import { pb } from '@/utils/api';
+import { pb, getCurrentUser } from '@/utils/api';
 import type { Party } from '@/utils/types';
 import { formatDate } from '@/utils/helpers';
 import { router } from 'expo-router';
@@ -14,7 +14,8 @@ export default function PartiesScreen() {
   const fetchParties = async () => {
     setLoading(true);
     try {
-      const currentUser = pb.authStore.model;
+      // Vérifier l'authentification de manière sécurisée
+      const currentUser = getCurrentUser();
       if (!currentUser) {
         router.replace('/login');
         return;
@@ -150,10 +151,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   partyContent: {

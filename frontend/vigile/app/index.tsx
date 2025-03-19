@@ -1,8 +1,8 @@
-import { StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { logoutUser } from '../../shared/api';
+import { logoutUser } from '@/utils/api';
 
 export default function HomeScreen() {
     const handleScanPress = () => {
@@ -21,10 +21,10 @@ export default function HomeScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Image
+                {/* <Image
                     source={require('../assets/images/logo.png')}
                     style={styles.logo}
-                />
+                /> */}
                 <Text style={styles.title}>Vigile</Text>
                 <Text style={styles.subtitle}>Scanner les invitations des participants</Text>
             </View>

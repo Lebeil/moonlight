@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { router } from 'expo-router';
-import { pb } from '../../shared/api';
+import { pb } from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 
 type ScanHistoryItem = {

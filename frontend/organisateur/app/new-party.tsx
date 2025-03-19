@@ -5,7 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Party } from '@/utils/types';
 import { PartySchema } from '@/utils/types';
-import { pb, generateUniqueCode } from '@/utils/api';
+import { pb, generateUniqueCode, getCurrentUser } from '@/utils/api';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -28,7 +28,8 @@ export default function NewPartyScreen() {
     const onSubmit = async (data: Party) => {
         setLoading(true);
         try {
-            const user = pb.authStore.model;
+            // Vérifier l'authentification
+            const user = getCurrentUser();
             if (!user) {
                 router.replace('/login');
                 return;
