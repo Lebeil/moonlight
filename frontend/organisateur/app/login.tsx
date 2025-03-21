@@ -9,10 +9,26 @@ import { loginUser, pb } from '@/utils/api';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+// Fonction sécurisée pour la navigation
+const safeNavigate = (path: string) => {
+    setTimeout(() => {
+        router.replace({ pathname: path as any });
+    }, 100);
+};
+
 export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const { logout } = useLocalSearchParams();
+
+    // Debug état initial de l'authentification
+    useEffect(() => {
+        console.log("--- Login Screen ---");
+        console.log("État actuel d'authentification:", pb.authStore.isValid);
+        console.log("Token:", pb.authStore.token ? 'Présent' : 'Absent');
+        console.log("URL PocketBase:", pb.baseUrl);
+        console.log("Paramètre logout:", logout);
+    }, []);
 
     // Gestion de la déconnexion uniquement si paramètre explicite
     useEffect(() => {
@@ -26,11 +42,15 @@ export default function LoginScreen() {
     // Vérifier si déjà connecté
     useEffect(() => {
         if (pb.authStore.isValid) {
-            const userRole = String(pb.authStore.model?.role || '').toLowerCase().trim();
-            if (userRole.includes('organisateur')) {
-                console.log('Utilisateur déjà connecté, redirection vers (tabs)');
-                router.replace('/(tabs)');
-            }
+            console.log("Utilisateur déjà connecté");
+            const user = pb.authStore.model;
+
+            // Rediriger directement vers la page principale sans vérifier le rôle
+            console.log('Redirection vers (tabs)');
+            // Utiliser setTimeout pour éviter la navigation pendant le rendu
+            setTimeout(() => {
+                router.replace({ pathname: '/(tabs)' });
+            }, 300);
         }
     }, []);
 
@@ -46,7 +66,21 @@ export default function LoginScreen() {
         setLoading(true);
         setErrorMessage(''); // Réinitialiser le message d'erreur
 
+        console.log(`Tentative de connexion avec email: ${data.email}`);
+
         try {
+            // Tester la connexion à PocketBase
+            try {
+                console.log(`Vérification de la connexion à PocketBase: ${pb.baseUrl}`);
+                const health = await pb.health.check();
+                console.log("PocketBase est en ligne:", health);
+            } catch (healthError) {
+                console.error("PocketBase est inaccessible:", healthError);
+                setErrorMessage(`Impossible de se connecter au serveur. Vérifiez votre connexion (${healthError instanceof Error ? healthError.message : 'erreur'}).`);
+                setLoading(false);
+                return;
+            }
+
             const response = await loginUser(data.email, data.password);
 
             // Vérifier si la connexion a réussi et si l'utilisateur existe
@@ -58,40 +92,28 @@ export default function LoginScreen() {
 
             // Déboguer l'objet utilisateur
             console.log('User object:', JSON.stringify(response.user));
-            console.log('Role property type:', typeof response.user.role);
-            console.log('Role property value:', response.user.role);
+            console.log('Utilisateur connecté avec succès:', response.user.id);
 
-            // Vérifier si l'utilisateur est un organisateur
-            const userRole = String(response.user.role || '').toLowerCase().trim();
-            console.log('Rôle détecté:', response.user.role, 'Après conversion:', userRole);
+            // L'authentification a réussi - sans vérification de rôle
+            console.log('Authentification réussie! État auth:', pb.authStore.isValid);
+            console.log('Redirection vers la page des soirées');
 
-            if (!userRole.includes('organisateur')) {
-                console.log('Rôle incorrect:', response.user.role);
+            // Forcer la redirection vers la page des soirées avec setTimeout
+            setTimeout(() => {
+                try {
+                    router.replace({ pathname: '/(tabs)' });
+                } catch (navError) {
+                    console.error('Erreur lors de la redirection:', navError);
+                }
+            }, 300);
 
-                // Message d'erreur sur le rôle
-                setErrorMessage(`Accès refusé: Cette application est réservée aux organisateurs. Votre rôle actuel est "${response.user.role || 'Non défini'}"`);
-
-                // Déconnexion de l'utilisateur non autorisé
-                pb.authStore.clear();
-                setLoading(false);
-                return;
-            }
-
-            // L'authentification a réussi
-            console.log('Authentification réussie! Redirection vers la page des soirées');
-
-            // Forcer la redirection vers la page des soirées
-            try {
-                router.replace('/(tabs)');
-            } catch (navError) {
-                console.error('Erreur lors de la redirection:', navError);
-                // En cas d'échec, essayer une autre approche
-                setTimeout(() => {
-                    router.replace('/(tabs)');
-                }, 500);
-            }
         } catch (error) {
-            setErrorMessage('Email ou mot de passe incorrect');
+            console.error("Erreur lors de la connexion:", error);
+            if (error instanceof Error) {
+                setErrorMessage(`Erreur: ${error.message}`);
+            } else {
+                setErrorMessage('Email ou mot de passe incorrect');
+            }
         } finally {
             setLoading(false);
         }
@@ -103,13 +125,13 @@ export default function LoginScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <View style={styles.formContainer}>
-                <Text style={styles.title}>Connexion Organisateur</Text>
+                <Text style={styles.title}>Connexion</Text>
                 <Text style={styles.subtitle}>Connectez-vous pour gérer vos soirées</Text>
 
                 <View style={styles.infoContainer}>
                     <Ionicons name="information-circle-outline" size={20} color="#666" />
                     <Text style={styles.infoText}>
-                        Cette application est réservée aux organisateurs d'événements
+                        Bienvenue dans l'application de gestion d'événements Moonlight
                     </Text>
                 </View>
 

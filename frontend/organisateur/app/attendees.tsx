@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Text, View } from '../components/Themed';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { pb } from '@/utils/api';
 import type { Attendee } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,10 +12,35 @@ export default function AttendeesScreen() {
     const [loading, setLoading] = useState(true);
     const [partyTitle, setPartyTitle] = useState('');
 
+    // Fonction de navigation sécurisée (déplacée à l'intérieur du composant)
+    const safeNavigate = (path: string) => {
+        setTimeout(() => {
+            if (path === 'back') {
+                // Utiliser le partyId pour retourner à la page de détails de la soirée
+                if (partyId) {
+                    router.replace({
+                        pathname: '/party-details',
+                        params: { id: partyId }
+                    });
+                } else {
+                    router.replace('/(tabs)' as any);
+                }
+            } else if (path === '/') {
+                router.replace('/(tabs)' as any);
+            } else {
+                router.push(path as any);
+            }
+        }, 300);
+    };
+
     const fetchAttendees = async () => {
-        if (!partyId) return;
+        if (!partyId) {
+            setLoading(false);
+            return;
+        }
 
         try {
+            console.log("Récupération des participants pour la soirée:", partyId);
             // Récupérer les infos de la soirée
             const partyRecord = await pb.collection('parties').getOne(partyId as string);
             setPartyTitle(partyRecord.title);
@@ -25,6 +50,8 @@ export default function AttendeesScreen() {
                 filter: `partyId = "${partyId}"`,
                 sort: '-created',
             });
+
+            console.log(`${records.items.length} participants trouvés`);
 
             setAttendees(records.items.map(item => ({
                 id: item.id,
@@ -37,28 +64,33 @@ export default function AttendeesScreen() {
         } catch (error) {
             console.error('Error fetching attendees:', error);
             Alert.alert('Erreur', 'Impossible de récupérer la liste des participants');
-            router.back();
+            safeNavigate('back');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchAttendees();
-
-        // S'abonner aux changements
-        let unsubscribeFunc: () => void;
-
-        pb.collection('attendees').subscribe('*', () => {
+    // Utiliser useFocusEffect au lieu de useEffect
+    useFocusEffect(
+        useCallback(() => {
             fetchAttendees();
-        }).then(unsubscribe => {
-            unsubscribeFunc = unsubscribe;
-        });
 
-        return () => {
-            if (unsubscribeFunc) unsubscribeFunc();
-        };
-    }, [partyId]);
+            // S'abonner aux changements
+            let unsubscribeFunc: (() => void) | undefined;
+
+            if (partyId) {
+                pb.collection('attendees').subscribe('*', () => {
+                    fetchAttendees();
+                }).then(unsubscribe => {
+                    unsubscribeFunc = unsubscribe;
+                });
+            }
+
+            return () => {
+                if (unsubscribeFunc) unsubscribeFunc();
+            };
+        }, [partyId])
+    );
 
     if (loading) {
         return (
@@ -71,11 +103,19 @@ export default function AttendeesScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => safeNavigate('back')}
+                >
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <Text style={styles.title}>Participants</Text>
-                <View style={styles.backButton} />
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.replace('/(tabs)' as any)}
+                >
+                    <Ionicons name="home" size={24} color="#333" />
+                </TouchableOpacity>
             </View>
 
             <Text style={styles.partyTitle}>{partyTitle}</Text>
@@ -134,10 +174,16 @@ const styles = StyleSheet.create({
         height: 40,
         justifyContent: 'center',
         alignItems: 'center',
+        flexDirection: 'row',
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: '#f0f0f0',
     },
     title: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
+        flex: 1,
+        textAlign: 'center',
     },
     partyTitle: {
         fontSize: 16,

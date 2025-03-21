@@ -2,15 +2,38 @@ import type { Party, Attendee } from './types';
 
 // Formater une date pour l'affichage
 export const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
+    try {
+        if (!dateString) return "Date non spécifiée";
+
+        const date = new Date(dateString);
+
+        // Vérifier si la date est valide
+        if (isNaN(date.getTime())) {
+            return "Date invalide";
+        }
+
+        return date.toLocaleDateString('fr-FR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    } catch (error) {
+        console.error("Erreur lors du formatage de la date:", error, "dateString:", dateString);
+        return "Date invalide";
+    }
+};
+
+// Formater une date pour l'affichage dans le sélecteur de date
+export const formatDisplayDate = (dateString: string) => {
+    try {
+        const date = new Date(dateString);
+        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} - ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    } catch (error) {
+        return "Date invalide";
+    }
 };
 
 // Générer le contenu QR pour une soirée

@@ -13,7 +13,8 @@ migrate((app) => {
     "system": false,
     "type": "select",
     "values": [
-      "\"user\""
+      "\"organisateur\"",
+      "\"vigile\""
     ]
   }))
 

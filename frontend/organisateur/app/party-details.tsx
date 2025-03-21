@@ -1,13 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, ActivityIndicator, Share, Alert, ScrollView } from 'react-native';
 import { Text, View } from '../components/Themed';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { pb } from '@/utils/api';
 import type { Party } from '@/utils/types';
 import { formatDate, generatePartyUrl, generatePartyQrContent } from '@/utils/helpers';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
+
+// Fonction de navigation sécurisée
+const safeNavigate = (path: string) => {
+  setTimeout(() => {
+    if (path === '/') {
+      router.replace('/(tabs)' as any);
+    } else if (path.startsWith('/attendees')) {
+      router.push(path as any);
+    } else {
+      router.back();
+    }
+  }, 300);
+};
 
 export default function PartyDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -16,20 +29,37 @@ export default function PartyDetailsScreen() {
   const [attendeeCount, setAttendeeCount] = useState(0);
 
   const fetchParty = async () => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
 
     try {
+      console.log("Récupération des détails de la soirée:", id);
       const record = await pb.collection('parties').getOne(id as string, {
         expand: 'organizer',
       });
 
+      console.log("Données brutes de la soirée:", JSON.stringify(record));
+
+      // Logs détaillés pour comprendre les problèmes de champs manquants
+      console.log("Champs vérifiés individuellement:");
+      console.log("- description:", record.description);
+      console.log("- location:", record.location);
+      console.log("- code:", record.code);
+
+      // Récupérer tous les champs disponibles
+      const allFields = Object.keys(record);
+      console.log("Tous les champs disponibles:", allFields);
+
+      // Mapper les données en vérifiant chaque champ
       setParty({
         id: record.id,
-        title: record.title,
-        description: record.description,
-        date: record.date,
-        location: record.location,
-        code: record.code,
+        title: record.title || record.name || "Sans titre",
+        description: record.description || record.description_text || "",
+        date: record.date || new Date().toISOString(),
+        location: record.location || record.link || "", // Essayer d'utiliser 'link' comme alternative
+        code: record.code || "",
         organizer: record.organizer,
       });
 
@@ -43,35 +73,38 @@ export default function PartyDetailsScreen() {
     } catch (error) {
       console.error('Error fetching party:', error);
       Alert.alert('Erreur', 'Impossible de récupérer les détails de la soirée');
-      router.back();
+      router.replace('/(tabs)' as any);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchParty();
+  // Utiliser useFocusEffect au lieu de useEffect
+  useFocusEffect(
+    useCallback(() => {
+      fetchParty();
 
-    // S'abonner aux changements
-    let unsubscribeFunc: () => void;
+      // S'abonner aux changements
+      let unsubscribeFunc: (() => void) | undefined;
 
-    pb.collection('attendees').subscribe('*', () => {
       if (id) {
-        pb.collection('attendees').getList(1, 1, {
-          filter: `partyId = "${id}"`,
-          countOnly: true,
-        }).then(result => {
-          setAttendeeCount(result.totalItems);
+        pb.collection('attendees').subscribe('*', () => {
+          pb.collection('attendees').getList(1, 1, {
+            filter: `partyId = "${id}"`,
+            countOnly: true,
+          }).then(result => {
+            setAttendeeCount(result.totalItems);
+          });
+        }).then(unsubscribe => {
+          unsubscribeFunc = unsubscribe;
         });
       }
-    }).then(unsubscribe => {
-      unsubscribeFunc = unsubscribe;
-    });
 
-    return () => {
-      if (unsubscribeFunc) unsubscribeFunc();
-    };
-  }, [id]);
+      return () => {
+        if (unsubscribeFunc) unsubscribeFunc();
+      };
+    }, [id])
+  );
 
   const handleShareLink = async () => {
     if (!party) return;
@@ -116,7 +149,7 @@ export default function PartyDetailsScreen() {
               try {
                 await pb.collection('parties').delete(party.id as string);
                 Alert.alert('Succès', 'La soirée a été supprimée');
-                router.replace('/');
+                router.replace('/(tabs)' as any);
               } catch (error) {
                 console.error('Error deleting party:', error);
                 Alert.alert('Erreur', 'Impossible de supprimer la soirée');
@@ -130,7 +163,7 @@ export default function PartyDetailsScreen() {
 
   const handleViewAttendees = () => {
     if (!party) return;
-    router.push(`/attendees?partyId=${party.id}`);
+    safeNavigate(`/attendees?partyId=${party.id}`);
   };
 
   if (loading) {
@@ -154,6 +187,22 @@ export default function PartyDetailsScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)' as any)}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Détails de la soirée</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)' as any)}
+          >
+            <Ionicons name="home" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.title}>{party.title}</Text>
 
         <View style={styles.qrContainer}>
@@ -173,7 +222,7 @@ export default function PartyDetailsScreen() {
 
           <View style={styles.infoRow}>
             <Ionicons name="location" size={20} color="#666" />
-            <Text style={styles.infoText}>{party.location}</Text>
+            <Text style={styles.infoText}>{party.location || "Lieu non spécifié"}</Text>
           </View>
 
           <View style={styles.infoRow}>
@@ -183,16 +232,18 @@ export default function PartyDetailsScreen() {
 
           <View style={styles.infoBox}>
             <Text style={styles.infoLabel}>Description</Text>
-            <Text style={styles.description}>{party.description}</Text>
+            <Text style={styles.description}>{party.description || "Aucune description"}</Text>
           </View>
 
           <View style={styles.infoBox}>
             <Text style={styles.infoLabel}>Code de la soirée</Text>
             <View style={styles.codeContainer}>
-              <Text style={styles.codeText}>{party.code}</Text>
-              <TouchableOpacity onPress={handleCopyLink}>
-                <Ionicons name="copy-outline" size={20} color="#4630EB" />
-              </TouchableOpacity>
+              <Text style={styles.codeText}>{party.code || "Code non disponible"}</Text>
+              {party.code && (
+                <TouchableOpacity onPress={handleCopyLink}>
+                  <Ionicons name="copy-outline" size={20} color="#4630EB" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -224,6 +275,27 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 15,
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
   },
   title: {
     fontSize: 24,
